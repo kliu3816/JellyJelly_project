@@ -14,8 +14,6 @@ from dotenv import load_dotenv
 class VideoAnalyzer:
     def __init__(self):
         self.openai_client = openai.OpenAI()
-        # Load environment variables
-        load_dotenv(dotenv_path=".env", override=True)
         
         # Configure Gemini with safety settings
         load_dotenv(dotenv_path=".env", override=True) 
