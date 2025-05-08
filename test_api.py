@@ -15,7 +15,7 @@ def test_health():
 def test_video_analysis():
     """Test the video analysis endpoint"""
     # Example Jelly video URL
-    video_url = "https://jelly-shareables.s3.amazonaws.com/B3C5069A-C7E9-4598-9298-E70275B8CFF7/B3C5069A-C7E9-4598-9298-E70275B8CFF7_original.mp4"
+    video_url = "https://jelly-shareables.s3.amazonaws.com/2771CE78-B149-4807-8CE1-AE615BA31E8D/2771CE78-B149-4807-8CE1-AE615BA31E8D_original.mp4"
     
     payload = {
         "video_url": video_url,

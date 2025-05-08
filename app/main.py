@@ -10,6 +10,9 @@ from .services.video_analyzer import VideoAnalyzer
 from .services.emotion_detector import EmotionDetector
 from .services.title_generator import TitleGenerator
 import logging
+import tempfile
+import requests
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +61,7 @@ async def health_check():
 
 @app.post("/api/analyze", response_model=VideoAnalysisResponse)
 async def analyze_video(request: VideoAnalysisRequest):
+    temp_file_path = None
     try:
         logger.info(f"Starting video analysis for URL: {request.video_url}")
         
@@ -76,7 +80,22 @@ async def analyze_video(request: VideoAnalysisRequest):
         
         if request.generate_titles:
             logger.info("Generating titles...")
-            analysis["titles"] = await title_generator.generate_titles(analysis["summary"])
+            # Get transcription from the analyzer
+            with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_file:
+                response = requests.get(request.video_url)
+                temp_file.write(response.content)
+                temp_file_path = temp_file.name
+                try:
+                    transcription = await analyzer._transcribe_audio(temp_file_path)
+                    analysis["titles"] = await title_generator.generate_titles(analysis["summary"], transcription)
+                finally:
+                    if temp_file_path and os.path.exists(temp_file_path):
+                        try:
+                            # Give a small delay to ensure all file handles are released
+                            await asyncio.sleep(1)
+                            os.unlink(temp_file_path)
+                        except Exception as e:
+                            logger.error(f"Error deleting temporary file: {str(e)}")
         
         if request.detect_speakers:
             logger.info("Detecting speakers...")
@@ -91,6 +110,14 @@ async def analyze_video(request: VideoAnalysisRequest):
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+    finally:
+        # Ensure temporary file is cleaned up
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                await asyncio.sleep(1)
+                os.unlink(temp_file_path)
+            except Exception as e:
+                logger.error(f"Error deleting temporary file: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
