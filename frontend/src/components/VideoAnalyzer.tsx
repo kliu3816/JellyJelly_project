@@ -48,7 +48,14 @@ export default function VideoAnalyzer({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Failed to analyze video' }));
-        throw new Error(errorData.detail || 'Failed to analyze video');
+        const errorMessage = errorData.detail || 'Failed to analyze video';
+        
+        // Handle specific error cases
+        if (errorMessage.includes('proxies')) {
+          throw new Error('Server configuration error. Please try again later.');
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

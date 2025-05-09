@@ -17,17 +17,22 @@ import logging
 import subprocess
 import re
 
+# Load environment variables
 load_dotenv(dotenv_path=".env", override=True)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Configure OpenAI
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 class VideoAnalyzer:
     def __init__(self):
-        # Initialize OpenAI client without any proxy settings
+        # Initialize OpenAI client with minimal configuration
         self.openai_client = openai.OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY")
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url="https://api.openai.com/v1"  # Explicitly set the base URL
         )
         logger.info("Loading Whisper model...")
         try:

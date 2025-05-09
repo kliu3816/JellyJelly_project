@@ -29,6 +29,18 @@ class VideoAnalysisRequest(BaseModel):
 async def root():
     return {"message": "JellyJelly API is running"}
 
+@app.get("/debug/env")
+async def debug_env():
+    """Debug endpoint to check environment variables"""
+    env_vars = {
+        "OPENAI_API_KEY": bool(os.getenv("OPENAI_API_KEY")),
+        "GOOGLE_API_KEY": bool(os.getenv("GOOGLE_API_KEY")),
+        "HTTP_PROXY": os.getenv("HTTP_PROXY"),
+        "HTTPS_PROXY": os.getenv("HTTPS_PROXY"),
+        "NO_PROXY": os.getenv("NO_PROXY"),
+    }
+    return env_vars
+
 @app.post("/api/analyze")
 async def analyze_video(request: VideoAnalysisRequest):
     try:
