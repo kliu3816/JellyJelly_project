@@ -43,6 +43,8 @@ export default function VideoAnalyzer({
 
       while (retries > 0) {
         try {
+          console.log('Attempting to connect to:', `${process.env.NEXT_PUBLIC_API_URL}/api/analyze`);
+          
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/analyze`, {
             method: 'POST',
             headers: {
@@ -50,10 +52,13 @@ export default function VideoAnalyzer({
               'Accept': 'application/json',
             },
             body: JSON.stringify(request),
+            mode: 'cors',
+            credentials: 'omit',
           });
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Failed to analyze video' }));
+            console.error('Server response:', response.status, errorData);
             throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
           }
 
@@ -62,11 +67,12 @@ export default function VideoAnalyzer({
           onAnalysisComplete(data);
           return; // Success, exit the function
         } catch (error) {
+          console.error('Attempt failed:', error);
           lastError = error;
           retries--;
           if (retries > 0) {
             console.log(`Retrying... ${retries} attempts left`);
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying
           }
         }
       }

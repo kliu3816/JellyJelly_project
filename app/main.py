@@ -7,6 +7,10 @@ import os
 from dotenv import load_dotenv
 import logging
 import time
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+import asyncio
 
 # Configure logging
 logging.basicConfig(
@@ -18,12 +22,25 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+class TimeoutMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        try:
+            return await asyncio.wait_for(call_next(request), timeout=300.0)  # 5 minutes timeout
+        except asyncio.TimeoutError:
+            return JSONResponse(
+                status_code=504,
+                content={"detail": "Request timeout"}
+            )
+
 app = FastAPI()
+
+# Add timeout middleware
+app.add_middleware(TimeoutMiddleware)
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your Vercel domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -93,4 +110,10 @@ async def analyze_video(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "10000")),
+        timeout_keep_alive=300,
+        timeout_graceful_shutdown=300
+    ) 
