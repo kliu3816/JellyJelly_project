@@ -245,7 +245,8 @@ class VideoAnalyzer:
                 messages=[
                     {
                         "role": "system",
-                        "content": """You are a video analysis expert. Your task is to analyze both the visual content and spoken words to create a comprehensive analysis.
+                        "content": """You are a video analysis expert. Your task is to analyze both the visual content and spoken words to create a comprehensive analysis. Remember that Jelly Jelly is the social media app that you are working for and the content is for
+                        and  a jelly is a video that is uploaded to the app.
                         Focus on:
                         1. What is actually being said in the video
                         2. The visual context and actions
@@ -308,14 +309,83 @@ Please provide:
 
     def _parse_analysis(self, analysis_text: str) -> Dict[str, Any]:
         """Parse the analysis text into structured data."""
-        lines = analysis_text.split('\n')
-        return {
-            "summary": lines[0] if lines else "",
-            "setting": lines[1] if len(lines) > 1 else "",
-            "conversation_topic": lines[2] if len(lines) > 2 else "",
-            "suggested_caption": lines[3] if len(lines) > 3 else "",
-            "mood": "neutral"  # Placeholder implementation
-        }
+        try:
+            # Split the text into sections
+            sections = analysis_text.split('\n\n')
+            
+            # Initialize the result dictionary
+            result = {
+                "summary": "",
+                "setting": "",
+                "conversation_topic": "",
+                "suggested_caption": "",
+                "mood": "neutral"
+            }
+            
+            # Process each section
+            for section in sections:
+                section = section.strip()
+                if not section:
+                    continue
+                    
+                # Look for summary section
+                if "1. A detailed summary" in section or "Summary:" in section:
+                    # Extract the summary text, removing the header
+                    summary_lines = section.split('\n')[1:] if '\n' in section else [section]
+                    result["summary"] = ' '.join(summary_lines).strip()
+                
+                # Look for setting section
+                elif "2. The setting" in section or "Setting:" in section:
+                    setting_lines = section.split('\n')[1:] if '\n' in section else [section]
+                    result["setting"] = ' '.join(setting_lines).strip()
+                
+                # Look for conversation topic section
+                elif "3. The main topic" in section or "Topic:" in section:
+                    topic_lines = section.split('\n')[1:] if '\n' in section else [section]
+                    result["conversation_topic"] = ' '.join(topic_lines).strip()
+                
+                # Look for caption section
+                elif "4. A viral caption" in section or "Caption:" in section:
+                    caption_lines = section.split('\n')[1:] if '\n' in section else [section]
+                    result["suggested_caption"] = ' '.join(caption_lines).strip()
+            
+            # If any field is empty, try to extract it from the text
+            if not result["summary"]:
+                # Try to find the first substantial paragraph as summary
+                paragraphs = [p.strip() for p in analysis_text.split('\n\n') if p.strip()]
+                if paragraphs:
+                    result["summary"] = paragraphs[0]
+            
+            if not result["setting"] and "setting" in analysis_text.lower():
+                # Try to find setting information
+                setting_index = analysis_text.lower().find("setting")
+                if setting_index != -1:
+                    result["setting"] = analysis_text[setting_index:].split('\n')[0].strip()
+            
+            if not result["conversation_topic"] and "topic" in analysis_text.lower():
+                # Try to find topic information
+                topic_index = analysis_text.lower().find("topic")
+                if topic_index != -1:
+                    result["conversation_topic"] = analysis_text[topic_index:].split('\n')[0].strip()
+            
+            if not result["suggested_caption"] and "caption" in analysis_text.lower():
+                # Try to find caption information
+                caption_index = analysis_text.lower().find("caption")
+                if caption_index != -1:
+                    result["suggested_caption"] = analysis_text[caption_index:].split('\n')[0].strip()
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error parsing analysis text: {str(e)}")
+            # Return a default structure if parsing fails
+            return {
+                "summary": analysis_text[:200] + "..." if len(analysis_text) > 200 else analysis_text,
+                "setting": "Unable to extract setting",
+                "conversation_topic": "Unable to extract topic",
+                "suggested_caption": "Unable to extract caption",
+                "mood": "neutral"
+            }
 
     async def detect_speakers(self, video_url: str) -> int:
         """Detect the number of speakers in the video."""

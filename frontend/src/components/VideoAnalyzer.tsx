@@ -45,8 +45,13 @@ export default function VideoAnalyzer({
       }
 
       const data = await response.json();
+      console.log('API Response:', JSON.stringify(data, null, 2));
+      console.log('Summary:', data.summary);
+      console.log('Setting:', data.setting);
+      console.log('Conversation Topic:', data.conversation_topic);
       onAnalysisComplete(data);
     } catch (err) {
+      console.error('API Error:', err);
       onError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       onLoadingChange(false);
