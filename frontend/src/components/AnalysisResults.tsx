@@ -6,22 +6,17 @@ interface AnalysisResultsProps {
 
 export default function AnalysisResults({ analysis }: AnalysisResultsProps) {
   console.log('AnalysisResults received:', JSON.stringify(analysis, null, 2));
-  console.log('Summary value:', analysis.summary);
-  console.log('Setting value:', analysis.setting);
-  console.log('Conversation Topic value:', analysis.conversation_topic);
 
   const handleDownload = () => {
     const dataStr = JSON.stringify(analysis, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
     const exportFileDefaultName = 'video-analysis.json';
-    
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
   };
-  
+
   return (
     <div className="mt-8 space-y-8">
       {/* Download Button */}
@@ -40,57 +35,37 @@ export default function AnalysisResults({ analysis }: AnalysisResultsProps) {
       {/* Summary Section */}
       <section className="bg-gray-800/50 rounded-lg p-6">
         <h2 className="text-2xl font-semibold mb-4">Summary</h2>
-        <p className="text-gray-200 leading-relaxed">{analysis.summary || "No summary available"}</p>
+        <p className="text-gray-200 leading-relaxed">
+          {analysis.frame_analysis?.summary || analysis.transcription_analysis?.analysis || "No summary available"}
+        </p>
       </section>
 
-      {/* Context Section */}
-      <section className="bg-gray-800/50 rounded-lg p-6">
-        <h2 className="text-2xl font-semibold mb-4">Context</h2>
-        <div className="space-y-6">
-          <div>
-            <h3 className="text-lg font-medium text-gray-300 mb-2">Setting and Context</h3>
-            <div className="bg-gray-700/50 rounded-lg p-4">
-              <p className="text-gray-200 whitespace-pre-wrap">
-                {analysis.setting && analysis.setting.trim() !== '' 
-                  ? analysis.setting 
-                  : "No setting information available"}
-              </p>
-            </div>
-          </div>
-          <div>
-            <h3 className="text-lg font-medium text-gray-300 mb-2">Topic and Key Points</h3>
-            <div className="bg-gray-700/50 rounded-lg p-4">
-              <p className="text-gray-200 whitespace-pre-wrap">
-                {analysis.conversation_topic && analysis.conversation_topic.trim() !== '' 
-                  ? analysis.conversation_topic.replace(/^\d+\.\s*/, '') // Remove leading numbers and dots
-                  : "No topic information available"}
-              </p>
-            </div>
-          </div>
-          <div>
-            <h3 className="text-lg font-medium text-gray-300 mb-2">Mood and Tone</h3>
-            <div className="bg-gray-700/50 rounded-lg p-4">
-              <p className="text-gray-200 capitalize whitespace-pre-wrap">
-                {analysis.mood || "No mood information available"}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Fun TikTok Caption Section */}
+      {typeof analysis.fun_caption === 'string' && analysis.fun_caption.trim() !== '' && (
+        <section className="bg-gray-800/50 rounded-lg p-6">
+          <h2 className="text-2xl font-semibold mb-4">TikTok-Inspired Caption</h2>
+          <p className="text-pink-400 text-lg">{analysis.fun_caption}</p>
+        </section>
+      )}
 
-      {/* Key Moments Section */}
+      {/* Key Points Section */}
       <section className="bg-gray-800/50 rounded-lg p-6">
-        <h2 className="text-2xl font-semibold mb-4">Key Moments</h2>
-        <div className="space-y-3">
-          {analysis.key_moments.map((moment, index) => (
-            <div key={index} className="flex items-start space-x-4">
-              <span className="text-blue-400 font-mono">
-                {formatTimestamp(moment.timestamp)}
-              </span>
-              <p className="text-gray-200">{moment.description}</p>
-            </div>
+        <h2 className="text-2xl font-semibold mb-4">Key Points</h2>
+        <ul className="list-disc pl-6 text-gray-200">
+          {(analysis.transcription_analysis?.key_points || []).map((point: string, idx: number) => (
+            <li key={idx}>{point}</li>
           ))}
-        </div>
+        </ul>
+      </section>
+
+      {/* Frame Descriptions Section */}
+      <section className="bg-gray-800/50 rounded-lg p-6">
+        <h2 className="text-2xl font-semibold mb-4">Frame Descriptions</h2>
+        <ul className="list-decimal pl-6 text-gray-200">
+          {(analysis.frame_analysis?.frame_descriptions || []).map((desc: string, idx: number) => (
+            <li key={idx}>{desc}</li>
+          ))}
+        </ul>
       </section>
 
       {/* Emotions Section */}
@@ -99,63 +74,42 @@ export default function AnalysisResults({ analysis }: AnalysisResultsProps) {
           <h2 className="text-2xl font-semibold mb-4">Emotional Analysis</h2>
           <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-medium text-gray-300">Overall Tone</h3>
-              <p className="text-gray-200">{analysis.emotions.overall_tone}</p>
+              <h3 className="text-lg font-medium text-gray-300">Overall Mood</h3>
+              <p className="text-gray-200">{analysis.emotions.mood_summary || "No mood information available"}</p>
             </div>
             <div>
-              <h3 className="text-lg font-medium text-gray-300">Emotional Progression</h3>
-              <p className="text-gray-200">{analysis.emotions.emotional_progression}</p>
-            </div>
-            <div>
-              <h3 className="text-lg font-medium text-gray-300">Dominant Emotions</h3>
-              <p className="text-gray-200">{analysis.emotions.dominant_emotions}</p>
+              <h3 className="text-lg font-medium text-gray-300">Emotional Analysis</h3>
+              <p className="text-gray-200">{analysis.emotions.emotional_analysis || "No emotional analysis available"}</p>
             </div>
           </div>
         </section>
       )}
 
       {/* Titles Section */}
-      {analysis.titles && analysis.titles.length > 0 && (
+      {Array.isArray(analysis.titles?.suggested_titles) && analysis.titles.suggested_titles.length > 0 && (
         <section className="bg-gray-800/50 rounded-lg p-6">
           <h2 className="text-2xl font-semibold mb-4">Suggested Titles</h2>
           <ul className="space-y-2">
-            {analysis.titles.map((title, index) => (
+            {analysis.titles.suggested_titles.map((title: string, index: number) => (
               <li key={index} className="text-gray-200">{title}</li>
             ))}
           </ul>
         </section>
       )}
 
-      {/* Suggested Caption */}
+      {/* Content Safety Score */}
       <section className="bg-gray-800/50 rounded-lg p-6">
-        <h2 className="text-2xl font-semibold mb-4">Suggested Caption</h2>
-        <p className="text-gray-200">{analysis.suggested_caption || "No caption available"}</p>
-      </section>
-
-      {/* Additional Information */}
-      <section className="bg-gray-800/50 rounded-lg p-6">
-        <h2 className="text-2xl font-semibold mb-4">Additional Information</h2>
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-lg font-medium text-gray-300">Content Safety Score</h3>
-            <div className="flex items-center space-x-2">
-              <div className="w-full bg-gray-700 rounded-full h-2.5">
-                <div
-                  className="bg-blue-600 h-2.5 rounded-full"
-                  style={{ width: `${analysis.safety_score * 100}%` }}
-                ></div>
-              </div>
-              <span className="text-gray-200">{(analysis.safety_score * 100).toFixed(0)}%</span>
-            </div>
+        <h2 className="text-2xl font-semibold mb-4">Content Safety Score</h2>
+        <div className="flex items-center space-x-2">
+          <div className="w-full bg-gray-700 rounded-full h-2.5">
+            <div
+              className="bg-blue-600 h-2.5 rounded-full"
+              style={{ width: `${((analysis.content_safety ?? 0) * 100).toFixed(0)}%` }}
+            ></div>
           </div>
+          <span className="text-gray-200">{((analysis.content_safety ?? 0) * 100).toFixed(0)}%</span>
         </div>
       </section>
     </div>
   );
-}
-
-function formatTimestamp(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.floor(seconds % 60);
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }

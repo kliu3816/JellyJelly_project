@@ -36,8 +36,8 @@ class VideoAnalyzer:
         logger.info("Whisper model loaded successfully")
         
         # Initialize Google AI model
-        self.gemini_pro = genai.GenerativeModel('gemini-pro')
-        self.gemini_pro_vision = genai.GenerativeModel('gemini-pro-vision')
+        self.gemini_pro = genai.GenerativeModel('gemini-1.5-flash')
+        self.gemini_pro_vision = genai.GenerativeModel('gemini-1.5-flash')
         logger.info("Google AI models initialized successfully")
 
     def _extract_audio(self, video_path: str) -> str:
@@ -123,7 +123,6 @@ class VideoAnalyzer:
         try:
             video = VideoFileClip(video_path)
             duration = video.duration
-            
             frames = []
             for i in range(num_frames):
                 timestamp = (i + 0.5) * duration / num_frames
@@ -134,7 +133,6 @@ class VideoAnalyzer:
                 if frame_image.width > 1024 or frame_image.height > 1024:
                     frame_image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
                 frames.append(frame_image)
-            
             return frames
         finally:
             if video is not None:
@@ -238,6 +236,11 @@ class VideoAnalyzer:
                 logger.info("Generating titles...")
                 result["titles"] = await self.generate_titles(frame_analysis, transcription_analysis)
                 logger.info("Titles generated")
+
+            # Generate fun TikTok caption using GPT-4 and transcription
+            logger.info("Generating fun TikTok caption with GPT-4...")
+            result["fun_caption"] = await self.generate_fun_caption(frame_analysis, transcription_analysis, transcription)
+            logger.info("Fun caption generated")
 
             processing_time = time.time() - start_time
             logger.info(f"Video analysis completed in {processing_time:.2f} seconds")
@@ -345,7 +348,7 @@ class VideoAnalyzer:
         except Exception as e:
             logger.error(f"Error parsing analysis text: {str(e)}")
             # Return a default structure if parsing fails
-            return {
+        return {
                 "summary": analysis_text[:200] + "..." if len(analysis_text) > 200 else analysis_text,
                 "setting": "Unable to extract setting",
                 "conversation_topic": "Unable to extract topic",
@@ -354,19 +357,14 @@ class VideoAnalyzer:
             }
 
     async def analyze_frames(self, frames: list) -> Dict[str, Any]:
-        """Analyze frames using Google's Gemini Pro Vision."""
+        """Analyze frames using Google's Gemini 1.5 Flash."""
         try:
             frame_analyses = []
             for frame in frames:
-                # Convert PIL Image to bytes
-                img_byte_arr = io.BytesIO()
-                frame.save(img_byte_arr, format='PNG')
-                img_byte_arr = img_byte_arr.getvalue()
-                
-                # Analyze frame
+                # Pass PIL Image directly to Gemini 1.5 Flash
                 response = await asyncio.to_thread(
                     self.gemini_pro_vision.generate_content,
-                    [img_byte_arr, "Describe this frame in detail, focusing on visual elements, actions, and any notable features."]
+                    [frame, "Describe this frame in detail, focusing on visual elements, actions, and any notable features."]
                 )
                 frame_analyses.append(response.text)
             
@@ -384,7 +382,12 @@ class VideoAnalyzer:
             # Analyze transcription
             response = await asyncio.to_thread(
                 self.gemini_pro.generate_content,
-                f"Analyze this transcription and provide insights about the content, tone, and key points:\n\n{transcription}"
+                (
+                    "The following transcription is from a video posted on the social media platform Jelly Jelly. "
+                    "All videos on Jelly Jelly are considered 'Jelly' videos. "
+                    "Analyze this transcription and provide insights about the content, tone, and key points:\n\n"
+                    f"{transcription}"
+                )
             )
             
             return {
@@ -481,4 +484,22 @@ class VideoAnalyzer:
             return response.text
         except Exception as e:
             logger.error(f"Error selecting best title: {str(e)}")
-            raise 
+            raise
+
+    async def generate_fun_caption(self, frame_analysis: Dict[str, Any], transcription_analysis: Dict[str, Any], transcription: str) -> str:
+        """Generate a fun, TikTok-inspired caption for the video using the transcription and GPT-4."""
+        prompt = (
+            "You are a creative social media expert. Your task is to write a short, fun, and catchy caption for TikTok, "
+            "using ONLY the following video transcription as your source. The caption must be directly inspired by the transcription content, "
+            "and should not introduce unrelated ideas. Make it playful, use emojis if appropriate, and make it feel like it belongs on a viral TikTok video. "
+            "Be concise and engaging!\n\n"
+            f"Video Transcription: {transcription}"
+        )
+        client = openai.AsyncOpenAI()
+        response = await client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content.strip() 

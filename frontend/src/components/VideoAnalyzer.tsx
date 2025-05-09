@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { VideoAnalysisRequest, VideoAnalysisResponse } from '@/types';
+import { API_URL } from '@/config';
 
 interface VideoAnalyzerProps {
   onAnalysisComplete: (analysis: VideoAnalysisResponse) => void;
@@ -37,59 +38,41 @@ export default function VideoAnalyzer({
         generate_titles: options.generate_titles,
       };
 
-      // Use the correct env var for the API base URL
-      const API_URL = process.env.NEXT_PUBLIC_API_URL;
-      if (!API_URL) {
-        throw new Error('API URL is not defined');
-      }
-      console.log('API URL is:', API_URL);
-
+      console.log('Using API URL:', API_URL);
       const apiEndpoint = `${API_URL}/api/analyze`;
 
-      // Retry logic for analysis request
-      let retries = 3;
-      let lastError: Error | null = null;
+      // Remove retry logic for analysis request
+      try {
+        onError(`Connecting to backend...`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 600000); // 30s timeout
 
-      while (retries > 0) {
-        try {
-          onError(`Connecting to backend... (attempt ${4 - retries}/3)`);
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        const response = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify(request),
+          mode: 'cors',
+          signal: controller.signal,
+        });
 
-          const response = await fetch(apiEndpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Accept: 'application/json',
-            },
-            body: JSON.stringify(request),
-            mode: 'cors',
-            signal: controller.signal,
-          });
+        clearTimeout(timeoutId);
 
-          clearTimeout(timeoutId);
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: 'Failed to analyze video' }));
-            throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
-          }
-
-          const data: VideoAnalysisResponse = await response.json();
-          console.log('API Response:', data);
-          onAnalysisComplete(data);
-          return; // Exit on success
-        } catch (err) {
-          lastError = err instanceof Error ? err : new Error(String(err));
-          retries -= 1;
-          console.error('Request attempt failed:', lastError);
-          if (retries > 0) {
-            onError(`Retrying in 5s... (${retries} retries left)`);
-            await new Promise((res) => setTimeout(res, 5000));
-          }
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ detail: 'Failed to analyze video' }));
+          throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
         }
-      }
 
-      throw lastError || new Error('Failed to analyze video after multiple attempts');
+        const data: VideoAnalysisResponse = await response.json();
+        console.log('API Response:', data);
+        onAnalysisComplete(data);
+        return; // Exit on success
+      } catch (error) {
+        console.error('Error in handleSubmit:', error);
+        onError(error instanceof Error ? error.message : 'An unknown error occurred');
+      }
     } catch (error) {
       console.error('Error in handleSubmit:', error);
       onError(error instanceof Error ? error.message : 'An unknown error occurred');

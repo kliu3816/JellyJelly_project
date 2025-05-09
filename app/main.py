@@ -20,8 +20,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Load environment variables
-load_dotenv()
-
+load_dotenv(dotenv_path=".env", override=True)
+print("GOOGLE_API_KEY loaded:", os.getenv("GOOGLE_API_KEY"))
 class TimeoutMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         try:
