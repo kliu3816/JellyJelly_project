@@ -1,4 +1,3 @@
-# JellyJelly Video Analyzer
 # JellyJelly Video Analyzer By Kevin Liu
 
 A powerful video analysis tool that uses AI to analyze videos and provide detailed insights. The application is deployed at [https://jelly-jelly-app.vercel.app/](https://jelly-jelly-app.vercel.app/)
