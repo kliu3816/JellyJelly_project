@@ -34,104 +34,65 @@ export default function VideoAnalyzer({
       const request: VideoAnalysisRequest = {
         video_url: videoUrl,
         analyze_emotions: options.analyze_emotions,
-        generate_titles: options.generate_titles
+        generate_titles: options.generate_titles,
       };
 
-      // Check backend readiness
-      const checkBackendReady = async () => {
-        try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}`, {
-            method: 'GET',
-            mode: 'cors',
-            credentials: 'omit',
-          });
-          return response.ok;
-        } catch {
-          return false;
-        }
-      };
-
-      // Wait for backend to be ready
-      console.log('Checking backend readiness...');
-      onError('Waiting for backend to initialize...');
-      
-      let isReady = false;
-      let attempts = 0;
-      const maxAttempts = 10; // 5 minutes total (30 seconds * 10)
-      
-      while (!isReady && attempts < maxAttempts) {
-        isReady = await checkBackendReady();
-        if (!isReady) {
-          attempts++;
-          console.log(`Backend not ready, attempt ${attempts}/${maxAttempts}`);
-          onError(`Waiting for backend to initialize... (${attempts}/${maxAttempts})`);
-          await new Promise(resolve => setTimeout(resolve, 30000)); // 30 seconds between checks
-        }
+      // Use the correct env var for the API base URL
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
+      if (!API_URL) {
+        throw new Error('API URL is not defined');
       }
+      console.log('API URL is:', API_URL);
 
-      if (!isReady) {
-        throw new Error('Backend service is not responding. Please try again later.');
-      }
+      const apiEndpoint = `${API_URL}/api/analyze`;
 
-      onError(null);
-      console.log('Backend is ready, proceeding with analysis...');
-
-      // Add retry logic for the actual analysis
+      // Retry logic for analysis request
       let retries = 3;
-      let lastError = null;
+      let lastError: Error | null = null;
 
       while (retries > 0) {
         try {
-          const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/analyze`;
-          console.log('Attempting to connect to:', apiUrl);
-          onError(`Attempting to connect (${4-retries}/3)...`);
-          
+          onError(`Connecting to backend... (attempt ${4 - retries}/3)`);
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-          const response = await fetch(apiUrl, {
+          const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Accept': 'application/json',
+              Accept: 'application/json',
             },
             body: JSON.stringify(request),
             mode: 'cors',
-            credentials: 'omit',
-            signal: controller.signal
+            signal: controller.signal,
           });
 
           clearTimeout(timeoutId);
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Failed to analyze video' }));
-            console.error('Server response:', response.status, errorData);
             throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
           }
 
-          const data = await response.json();
-          console.log('API Response:', JSON.stringify(data, null, 2));
+          const data: VideoAnalysisResponse = await response.json();
+          console.log('API Response:', data);
           onAnalysisComplete(data);
-          return; // Success, exit the function
-        } catch (error) {
-          console.error('Attempt failed:', error);
-          lastError = error;
-          retries--;
+          return; // Exit on success
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          retries -= 1;
+          console.error('Request attempt failed:', lastError);
           if (retries > 0) {
-            const delay = 5000; // 5 seconds between retries
-            console.log(`Retrying in ${delay/1000} seconds... ${retries} attempts left`);
-            onError(`Connection failed. Retrying in ${delay/1000} seconds...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
+            onError(`Retrying in 5s... (${retries} retries left)`);
+            await new Promise((res) => setTimeout(res, 5000));
           }
         }
       }
 
-      // If we get here, all retries failed
       throw lastError || new Error('Failed to analyze video after multiple attempts');
-
-    } catch (err) {
-      console.error('API Error:', err);
-      onError(err instanceof Error ? err.message : 'An error occurred');
+    } catch (error) {
+      console.error('Error in handleSubmit:', error);
+      onError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
       onLoadingChange(false);
     }
@@ -161,9 +122,7 @@ export default function VideoAnalyzer({
             <input
               type="checkbox"
               checked={options.analyze_emotions}
-              onChange={(e) =>
-                setOptions({ ...options, analyze_emotions: e.target.checked })
-              }
+              onChange={(e) => setOptions({ ...options, analyze_emotions: e.target.checked })}
               className="rounded border-gray-700 bg-gray-800"
             />
             <span>Analyze Emotions</span>
@@ -172,9 +131,7 @@ export default function VideoAnalyzer({
             <input
               type="checkbox"
               checked={options.generate_titles}
-              onChange={(e) =>
-                setOptions({ ...options, generate_titles: e.target.checked })
-              }
+              onChange={(e) => setOptions({ ...options, generate_titles: e.target.checked })}
               className="rounded border-gray-700 bg-gray-800"
             />
             <span>Generate Titles</span>
