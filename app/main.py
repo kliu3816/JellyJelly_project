@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from services.video_analyzer import VideoAnalyzer
+from app.services.video_analyzer import VideoAnalyzer
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
