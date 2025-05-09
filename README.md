@@ -2,7 +2,7 @@
 
 A powerful video analysis tool that uses AI to analyze videos and provide detailed insights. The application is deployed at [https://jelly-jelly-app.vercel.app/](https://jelly-jelly-app.vercel.app/)
 
-##example links: 
+## Example links: 
 - https://jelly-shareables.s3.amazonaws.com/B3C5069A-C7E9-4598-9298-E70275B8CFF7/B3C5069A-C7E9-4598-9298-E70275B8CFF7_original.mp4
 - https://jelly-shareables.s3.amazonaws.com/B3C5069A-C7E9-4598-9298-E70275B8CFF7/B3C5069A-C7E9-4598-9298-E70275B8CFF7_original.mp4
 
