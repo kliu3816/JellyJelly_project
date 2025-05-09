@@ -40,7 +40,7 @@ export default function VideoAnalyzer({
       // Add retry logic with much longer initial delay
       let retries = 3;
       let lastError = null;
-      let initialDelay = 15000; // 15 seconds initial delay
+      const initialDelay = 15000; // 15 seconds initial delay
 
       // Wait for initial delay before first attempt
       console.log('Waiting for backend to be ready (15 seconds)...');
