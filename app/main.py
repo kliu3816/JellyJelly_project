@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 import logging
 import time
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request as StarletteRequest
+from starlette.requests import Request
+from starlette.responses import Response
 import asyncio
 
 # Configure logging
@@ -21,33 +22,25 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# Initialize FastAPI
+class TimeoutMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        try:
+            return await asyncio.wait_for(call_next(request), timeout=300.0)  # 5 minutes timeout
+        except asyncio.TimeoutError:
+            return JSONResponse(
+                status_code=504,
+                content={"detail": "Request timeout"}
+            )
+
 app = FastAPI()
 
-# Global analyzer instance
-analyzer: VideoAnalyzer
-
-@app.on_event("startup")
-async def startup_event():
-    global analyzer
-    logger.info("Loading VideoAnalyzer model...")
-    analyzer = VideoAnalyzer(model_size=os.getenv("WHISPER_MODEL", "tiny"))
-    logger.info("VideoAnalyzer model loaded")
-
-# Timeout middleware
-class TimeoutMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: StarletteRequest, call_next):
-        try:
-            return await asyncio.wait_for(call_next(request), timeout=600.0)
-        except asyncio.TimeoutError:
-            return JSONResponse(status_code=504, content={"detail": "Request timeout"})
-
+# Add timeout middleware
 app.add_middleware(TimeoutMiddleware)
 
-# CORS for production frontend
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://jelly-jelly-app.vercel.app"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,33 +55,65 @@ class VideoAnalysisRequest(BaseModel):
 async def root():
     return {"message": "JellyJelly API is running"}
 
+@app.get("/debug/env")
+async def debug_env():
+    """Debug endpoint to check environment variables"""
+    env_vars = {
+        "OPENAI_API_KEY": bool(os.getenv("OPENAI_API_KEY")),
+        "GOOGLE_API_KEY": bool(os.getenv("GOOGLE_API_KEY")),
+        "HTTP_PROXY": os.getenv("HTTP_PROXY"),
+        "HTTPS_PROXY": os.getenv("HTTPS_PROXY"),
+        "NO_PROXY": os.getenv("NO_PROXY"),
+    }
+    return env_vars
+
 @app.post("/api/analyze")
 async def analyze_video(request: Request):
     start_time = time.time()
     try:
-        payload = await request.json()
-        video_url = payload.get("video_url")
+        # Parse request body
+        body = await request.json()
+        video_url = body.get("video_url")
+        analyze_emotions = body.get("analyze_emotions", True)
+        generate_titles = body.get("generate_titles", True)
+
         if not video_url:
             raise HTTPException(status_code=400, detail="video_url is required")
 
-        if not os.getenv("OPENAI_API_KEY") or not os.getenv("GOOGLE_API_KEY"):
-            raise HTTPException(status_code=500, detail="API keys not configured")
-
+        logger.info(f"Received analysis request for video: {video_url}")
+        
+        # Validate environment variables
+        if not os.getenv("OPENAI_API_KEY"):
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+        if not os.getenv("GOOGLE_API_KEY"):
+            raise HTTPException(status_code=500, detail="Google API key not configured")
+            
+        # Initialize analyzer and process video
+        analyzer = VideoAnalyzer(model_size="tiny")  # Use tiny model for faster startup
+        logger.info("VideoAnalyzer initialized successfully")
+        
         result = await analyzer.analyze_video(
             video_url,
-            analyze_emotions=payload.get("analyze_emotions", True),
-            generate_titles=payload.get("generate_titles", True)
+            analyze_emotions=analyze_emotions,
+            generate_titles=generate_titles
         )
-
-        logger.info(f"Analysis completed in {time.time() - start_time:.2f}s")
+        
+        processing_time = time.time() - start_time
+        logger.info(f"Video analysis completed successfully in {processing_time:.2f} seconds")
         return JSONResponse(content=result)
-
-    except HTTPException:
-        raise
+    except ValueError as e:
+        logger.error(f"Validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Analysis error: {e}")
+        logger.error(f"Error during video analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "10000")))
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "10000")),
+        timeout_keep_alive=300,
+        timeout_graceful_shutdown=300
+    )

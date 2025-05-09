@@ -6,7 +6,7 @@ import openai
 import google.generativeai as genai
 from PIL import Image
 import numpy as np
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import io
 import base64
 from dotenv import load_dotenv
@@ -16,65 +16,30 @@ import time
 import logging
 import subprocess
 import re
+import json
 
 # Load environment variables
 load_dotenv(dotenv_path=".env", override=True)
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class VideoAnalyzer:
-    def __init__(self):
-        # Set OpenAI API key globally
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-        if not openai.api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is not set")
-            
-        logger.info("Loading Whisper model...")
-        try:
-            self.whisper_model = whisper.load_model("base")
-            logger.info("Whisper model loaded successfully")
-        except Exception as e:
-            logger.error(f"Failed to load Whisper model: {str(e)}")
-            raise
+    def __init__(self, model_size: str = "tiny"):
+        """Initialize the VideoAnalyzer with specified Whisper model size."""
+        logger.info(f"Loading VideoAnalyzer with Whisper model size: {model_size}")
+        self.model = whisper.load_model(model_size)
+        logger.info("Whisper model loaded successfully")
         
-        # Configure Gemini with safety settings
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable is not set")
-        
-        genai.configure(api_key=api_key)
-        generation_config = {
-            "temperature": 0.4,
-            "top_p": 1,
-            "top_k": 32,
-            "max_output_tokens": 2048,
-        }
-        safety_settings = [
-            {
-                "category": "HARM_CATEGORY_HARASSMENT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-                "category": "HARM_CATEGORY_HATE_SPEECH",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
-            },
-            {
-                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
-            },
-        ]
-        self.gemini_model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            generation_config=generation_config,
-            safety_settings=safety_settings
-        )
-        
+        # Initialize Google AI model
+        self.gemini_pro = genai.GenerativeModel('gemini-pro')
+        self.gemini_pro_vision = genai.GenerativeModel('gemini-pro-vision')
+        logger.info("Google AI models initialized successfully")
+
     def _extract_audio(self, video_path: str) -> str:
         """Extract audio from video file to a temporary WAV file."""
         temp_audio_path = video_path.replace('.mp4', '_audio.wav')
@@ -128,7 +93,7 @@ class VideoAnalyzer:
             # Run the CPU-intensive transcription in a thread pool
             loop = asyncio.get_event_loop()
             logger.info("Starting Whisper transcription...")
-            result = await loop.run_in_executor(None, self.whisper_model.transcribe, temp_audio_path)
+            result = await loop.run_in_executor(None, self.model.transcribe, temp_audio_path)
             
             if not result or "text" not in result:
                 logger.error("Transcription failed - no text in result")
@@ -217,139 +182,71 @@ class VideoAnalyzer:
             logger.error(f"Error analyzing content safety: {str(e)}")
             return 0.95  # Default safe score if analysis fails
 
-    async def analyze_video(self, video_url: str) -> Dict[str, Any]:
-        """Analyze a video using multiple AI models."""
-        temp_file_path = None
+    async def analyze_video(self, video_url: str, analyze_emotions: bool = True, generate_titles: bool = True) -> Dict[str, Any]:
+        """Analyze a video and return insights."""
         try:
-            logger.info(f"Starting video analysis for URL: {video_url}")
+            logger.info(f"Starting video analysis for: {video_url}")
+            start_time = time.time()
+
+            # Download video
+            logger.info("Downloading video...")
+            response = requests.get(video_url)
+            if response.status_code != 200:
+                raise ValueError(f"Failed to download video: {response.status_code}")
             
-            # Download video to temporary file
-            with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_file:
-                logger.info("Downloading video...")
-                response = requests.get(video_url, stream=True)
-                response.raise_for_status()  # Raise an exception for bad status codes
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        temp_file.write(chunk)
-                temp_file_path = temp_file.name
-                logger.info(f"Video downloaded to: {temp_file_path}")
+            # Save video temporarily
+            temp_video_path = "temp_video.mp4"
+            with open(temp_video_path, "wb") as f:
+                f.write(response.content)
+            logger.info("Video downloaded successfully")
 
-            # Extract frames for analysis
-            logger.info("Extracting frames...")
-            frames = self._extract_key_frames(temp_file_path)
+            # Extract frames and transcribe audio
+            logger.info("Extracting frames and transcribing audio...")
+            frames = self._extract_key_frames(temp_video_path)
+            transcription = await self._transcribe_audio(temp_video_path)
+            logger.info("Frames extracted and audio transcribed")
+
+            # Clean up temporary file
+            os.remove(temp_video_path)
+            logger.info("Temporary video file removed")
+
+            # Analyze frames
+            logger.info("Analyzing frames...")
+            frame_analysis = await self.analyze_frames(frames)
+            logger.info("Frame analysis complete")
+
+            # Analyze transcription
+            logger.info("Analyzing transcription...")
+            transcription_analysis = await self.analyze_transcription(transcription)
+            logger.info("Transcription analysis complete")
+
+            # Combine results
+            result = {
+                "frame_analysis": frame_analysis,
+                "transcription_analysis": transcription_analysis,
+                "content_safety": await self._analyze_content_safety(transcription)
+            }
+
+            # Add emotions analysis if requested
+            if analyze_emotions:
+                logger.info("Analyzing emotions...")
+                result["emotions"] = await self.analyze_emotions(frame_analysis, transcription_analysis)
+                logger.info("Emotions analysis complete")
+
+            # Generate titles if requested
+            if generate_titles:
+                logger.info("Generating titles...")
+                result["titles"] = await self.generate_titles(frame_analysis, transcription_analysis)
+                logger.info("Titles generated")
+
+            processing_time = time.time() - start_time
+            logger.info(f"Video analysis completed in {processing_time:.2f} seconds")
             
-            # Get video duration
-            video = VideoFileClip(temp_file_path)
-            duration = video.duration
-            video.close()
-            logger.info(f"Video duration: {duration} seconds")
-
-            # Transcribe audio
-            logger.info("Starting audio transcription...")
-            transcription = await self._transcribe_audio(temp_file_path)
-            if not transcription:
-                logger.warning("No transcription available - proceeding with visual analysis only")
-                transcription = "No audio transcription available."
-
-            # Analyze frames with Gemini
-            logger.info("Analyzing frames with Gemini...")
-            frame_descriptions = []
-            for i, frame in enumerate(frames):
-                try:
-                    # Convert frame to bytes
-                    img_byte_arr = io.BytesIO()
-                    frame.save(img_byte_arr, format='JPEG', quality=95)
-                    img_byte_arr = img_byte_arr.getvalue()
-                    
-                    # Convert to base64
-                    base64_image = base64.b64encode(img_byte_arr).decode('utf-8')
-                    
-                    # Create image part for Gemini
-                    image_parts = [
-                        {
-                            "mime_type": "image/jpeg",
-                            "data": base64_image
-                        }
-                    ]
-                    
-                    logger.info(f"Analyzing frame {i+1} with Gemini...")
-                    response = self.gemini_model.generate_content([
-                        "Describe this frame in detail, including:\n1. What's happening\n2. The setting\n3. People and their actions\n4. Notable expressions or emotions",
-                        image_parts[0]
-                    ])
-                    
-                    if response and hasattr(response, 'text'):
-                        frame_descriptions.append(response.text)
-                        logger.info(f"Successfully analyzed frame {i+1}")
-                    else:
-                        logger.warning(f"Empty response from Gemini for frame {i+1}")
-                        frame_descriptions.append("Unable to analyze this frame")
-                        
-                except Exception as e:
-                    logger.error(f"Error analyzing frame {i+1} with Gemini: {str(e)}")
-                    frame_descriptions.append("Unable to analyze this frame")
-
-            # Combine frame descriptions and transcription for final analysis
-            logger.info("Generating final analysis with GPT-4...")
-            combined_analysis = await asyncio.to_thread(
-                openai.ChatCompletion.create,
-                model="gpt-4",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": """You are a video analysis expert. Your task is to analyze both the visual content and spoken words to create a comprehensive analysis. Remember that Jelly Jelly is the social media app that you are working for and the content is for
-                        and  a jelly is a video that is uploaded to the app.
-                        Focus on:
-                        1. What is actually being said in the video
-                        2. The visual context and actions
-                        3. How the spoken content relates to what's being shown
-                        4. The overall message and purpose of the video"""
-                    },
-                    {
-                        "role": "user",
-                        "content": f"""Analyze this video based on:
-
-Visual Content (Frame Descriptions):
-{frame_descriptions}
-
-Spoken Content (Transcription):
-{transcription}
-
-Please provide:
-1. A detailed summary that combines both what is being said and what is being shown. Focus on the actual content and message.
-2. The setting and context of the video
-3. The main topic and key points being discussed
-4. A viral caption that captures the essence of both the visual and spoken content"""
-                    }
-                ]
-            )
-
-            analysis_text = combined_analysis.choices[0].message.content
-            logger.info("Analysis completed successfully")
-            analysis = self._parse_analysis(analysis_text)
-            
-            # Add key moments
-            analysis["key_moments"] = self._extract_key_moments(frames, duration)
-            
-            # Analyze content safety
-            logger.info("Analyzing content safety...")
-            analysis["safety_score"] = await self._analyze_content_safety(analysis["summary"])
-
-            return analysis
+            return result
 
         except Exception as e:
-            logger.error(f"Error during video analysis: {str(e)}")
+            logger.error(f"Error in video analysis: {str(e)}")
             raise
-        finally:
-            # Clean up temporary file
-            if temp_file_path and os.path.exists(temp_file_path):
-                try:
-                    # Give a small delay to ensure all file handles are released
-                    await asyncio.sleep(1)
-                    os.unlink(temp_file_path)
-                    logger.info(f"Temporary file cleaned up: {temp_file_path}")
-                except Exception as e:
-                    logger.error(f"Error deleting temporary file: {str(e)}")
 
     def _extract_key_moments(self, frames: List[Image.Image], duration: float) -> List[Dict[str, Any]]:
         """Extract key moments from the video."""
@@ -454,4 +351,134 @@ Please provide:
                 "conversation_topic": "Unable to extract topic",
                 "suggested_caption": "Unable to extract caption",
                 "mood": "neutral"
-            } 
+            }
+
+    async def analyze_frames(self, frames: list) -> Dict[str, Any]:
+        """Analyze frames using Google's Gemini Pro Vision."""
+        try:
+            frame_analyses = []
+            for frame in frames:
+                # Convert PIL Image to bytes
+                img_byte_arr = io.BytesIO()
+                frame.save(img_byte_arr, format='PNG')
+                img_byte_arr = img_byte_arr.getvalue()
+                
+                # Analyze frame
+                response = await asyncio.to_thread(
+                    self.gemini_pro_vision.generate_content,
+                    [img_byte_arr, "Describe this frame in detail, focusing on visual elements, actions, and any notable features."]
+                )
+                frame_analyses.append(response.text)
+            
+            return {
+                "frame_descriptions": frame_analyses,
+                "summary": await self.summarize_frame_analyses(frame_analyses)
+            }
+        except Exception as e:
+            logger.error(f"Error analyzing frames: {str(e)}")
+            raise
+
+    async def analyze_transcription(self, transcription: str) -> Dict[str, Any]:
+        """Analyze transcription using Google's Gemini Pro."""
+        try:
+            # Analyze transcription
+            response = await asyncio.to_thread(
+                self.gemini_pro.generate_content,
+                f"Analyze this transcription and provide insights about the content, tone, and key points:\n\n{transcription}"
+            )
+            
+            return {
+                "analysis": response.text,
+                "key_points": await self.extract_key_points(transcription)
+            }
+        except Exception as e:
+            logger.error(f"Error analyzing transcription: {str(e)}")
+            raise
+
+    async def analyze_emotions(self, frame_analysis: Dict[str, Any], transcription_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze emotions in the video."""
+        try:
+            # Combine frame and transcription analyses
+            combined_analysis = f"Frame Analysis: {frame_analysis['summary']}\nTranscription Analysis: {transcription_analysis['analysis']}"
+            
+            # Analyze emotions
+            response = await asyncio.to_thread(
+                self.gemini_pro.generate_content,
+                f"Analyze the emotions and mood in this content. Provide a detailed breakdown of emotional elements:\n\n{combined_analysis}"
+            )
+            
+            return {
+                "emotional_analysis": response.text,
+                "mood_summary": await self.summarize_mood(combined_analysis)
+            }
+        except Exception as e:
+            logger.error(f"Error analyzing emotions: {str(e)}")
+            raise
+
+    async def generate_titles(self, frame_analysis: Dict[str, Any], transcription_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate titles for the video."""
+        try:
+            # Combine analyses for context
+            combined_analysis = f"Frame Analysis: {frame_analysis['summary']}\nTranscription Analysis: {transcription_analysis['analysis']}"
+            
+            # Generate titles
+            response = await asyncio.to_thread(
+                self.gemini_pro.generate_content,
+                f"Generate 5 engaging titles for this content. Make them catchy and relevant:\n\n{combined_analysis}"
+            )
+            
+            return {
+                "suggested_titles": response.text.split('\n'),
+                "best_title": await self.select_best_title(combined_analysis)
+            }
+        except Exception as e:
+            logger.error(f"Error generating titles: {str(e)}")
+            raise
+
+    async def summarize_frame_analyses(self, frame_analyses: list) -> str:
+        """Summarize frame analyses."""
+        try:
+            response = await asyncio.to_thread(
+                self.gemini_pro.generate_content,
+                f"Summarize these frame analyses into a cohesive description:\n\n{json.dumps(frame_analyses, indent=2)}"
+            )
+            return response.text
+        except Exception as e:
+            logger.error(f"Error summarizing frame analyses: {str(e)}")
+            raise
+
+    async def extract_key_points(self, transcription: str) -> list:
+        """Extract key points from transcription."""
+        try:
+            response = await asyncio.to_thread(
+                self.gemini_pro.generate_content,
+                f"Extract the key points from this transcription:\n\n{transcription}"
+            )
+            return response.text.split('\n')
+        except Exception as e:
+            logger.error(f"Error extracting key points: {str(e)}")
+            raise
+
+    async def summarize_mood(self, analysis: str) -> str:
+        """Summarize the overall mood."""
+        try:
+            response = await asyncio.to_thread(
+                self.gemini_pro.generate_content,
+                f"Summarize the overall mood and emotional tone of this content:\n\n{analysis}"
+            )
+            return response.text
+        except Exception as e:
+            logger.error(f"Error summarizing mood: {str(e)}")
+            raise
+
+    async def select_best_title(self, analysis: str) -> str:
+        """Select the best title from generated options."""
+        try:
+            response = await asyncio.to_thread(
+                self.gemini_pro.generate_content,
+                f"Select and refine the best title for this content:\n\n{analysis}"
+            )
+            return response.text
+        except Exception as e:
+            logger.error(f"Error selecting best title: {str(e)}")
+            raise 
