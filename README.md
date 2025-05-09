@@ -1,4 +1,4 @@
-# JellyJelly Video Analyzer
+# JellyJelly Video Analyzer By Kevin Liu
 
 A powerful video analysis tool that uses AI to analyze videos and provide detailed insights. The application is deployed at [https://jelly-jelly-app.vercel.app/](https://jelly-jelly-app.vercel.app/)
 
@@ -44,7 +44,6 @@ cd jellyjelly-project
 
 2. Set up the backend:
 ```bash
-cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -66,7 +65,6 @@ GOOGLE_API_KEY=your_google_api_key
 
 1. Start the backend server:
 ```bash
-cd backend
 uvicorn app.main:app --reload
 ```
 
@@ -91,11 +89,3 @@ npm run dev
 ## Deployment
 
 The application is deployed on Vercel and can be accessed at [https://jelly-jelly-app.vercel.app/](https://jelly-jelly-app.vercel.app/)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 
