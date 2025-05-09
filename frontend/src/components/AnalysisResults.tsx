@@ -111,12 +111,6 @@ export default function AnalysisResults({ analysis }: AnalysisResultsProps) {
       <section className="bg-gray-800/50 rounded-lg p-6">
         <h2 className="text-2xl font-semibold mb-4">Additional Information</h2>
         <div className="space-y-4">
-          {analysis.speaker_count !== undefined && (
-            <div>
-              <h3 className="text-lg font-medium text-gray-300">Number of Speakers</h3>
-              <p className="text-gray-200">{analysis.speaker_count}</p>
-            </div>
-          )}
           <div>
             <h3 className="text-lg font-medium text-gray-300">Content Safety Score</h3>
             <div className="flex items-center space-x-2">
