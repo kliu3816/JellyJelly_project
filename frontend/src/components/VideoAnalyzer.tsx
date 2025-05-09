@@ -37,33 +37,43 @@ export default function VideoAnalyzer({
         generate_titles: options.generate_titles
       };
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(request),
-      });
+      // Add retry logic
+      let retries = 3;
+      let lastError = null;
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Failed to analyze video' }));
-        const errorMessage = errorData.detail || 'Failed to analyze video';
-        
-        // Handle specific error cases
-        if (errorMessage.includes('proxies')) {
-          throw new Error('Server configuration error. Please try again later.');
+      while (retries > 0) {
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/analyze`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(request),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Failed to analyze video' }));
+            throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          console.log('API Response:', JSON.stringify(data, null, 2));
+          onAnalysisComplete(data);
+          return; // Success, exit the function
+        } catch (error) {
+          lastError = error;
+          retries--;
+          if (retries > 0) {
+            console.log(`Retrying... ${retries} attempts left`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+          }
         }
-        
-        throw new Error(errorMessage);
       }
 
-      const data = await response.json();
-      console.log('API Response:', JSON.stringify(data, null, 2));
-      console.log('Summary:', data.summary);
-      console.log('Setting:', data.setting);
-      console.log('Conversation Topic:', data.conversation_topic);
-      onAnalysisComplete(data);
+      // If we get here, all retries failed
+      throw lastError || new Error('Failed to analyze video after multiple attempts');
+
     } catch (err) {
       console.error('API Error:', err);
       onError(err instanceof Error ? err.message : 'An error occurred');

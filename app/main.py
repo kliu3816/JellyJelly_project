@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.services.video_analyzer import VideoAnalyzer
@@ -6,9 +6,13 @@ from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
 import logging
+import time
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -47,9 +51,19 @@ async def debug_env():
     return env_vars
 
 @app.post("/api/analyze")
-async def analyze_video(request: VideoAnalysisRequest):
+async def analyze_video(request: Request):
+    start_time = time.time()
     try:
-        logger.info(f"Received analysis request for video: {request.video_url}")
+        # Parse request body
+        body = await request.json()
+        video_url = body.get("video_url")
+        analyze_emotions = body.get("analyze_emotions", True)
+        generate_titles = body.get("generate_titles", True)
+
+        if not video_url:
+            raise HTTPException(status_code=400, detail="video_url is required")
+
+        logger.info(f"Received analysis request for video: {video_url}")
         
         # Validate environment variables
         if not os.getenv("OPENAI_API_KEY"):
@@ -62,12 +76,13 @@ async def analyze_video(request: VideoAnalysisRequest):
         logger.info("VideoAnalyzer initialized successfully")
         
         result = await analyzer.analyze_video(
-            request.video_url,
-            analyze_emotions=request.analyze_emotions,
-            generate_titles=request.generate_titles
+            video_url,
+            analyze_emotions=analyze_emotions,
+            generate_titles=generate_titles
         )
         
-        logger.info("Video analysis completed successfully")
+        processing_time = time.time() - start_time
+        logger.info(f"Video analysis completed successfully in {processing_time:.2f} seconds")
         return JSONResponse(content=result)
     except ValueError as e:
         logger.error(f"Validation error: {str(e)}")
