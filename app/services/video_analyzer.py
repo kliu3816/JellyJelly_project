@@ -218,11 +218,16 @@ class VideoAnalyzer:
             transcription_analysis = await self.analyze_transcription(transcription)
             logger.info("Transcription analysis complete")
 
+            # Decide if transcription is nonsense (very short or empty)
+            use_transcription = transcription and len(transcription.strip().split()) > 10
+            if not use_transcription:
+                logger.info("Transcription is too short or nonsense; using only frame analysis for caption and content safety.")
+
             # Combine results
             result = {
                 "frame_analysis": frame_analysis,
                 "transcription_analysis": transcription_analysis,
-                "content_safety": await self._analyze_content_safety(transcription)
+                "content_safety": await self._analyze_content_safety(transcription if use_transcription else frame_analysis.get("summary", ""))
             }
 
             # Add emotions analysis if requested
@@ -237,16 +242,18 @@ class VideoAnalyzer:
                 result["titles"] = await self.generate_titles(frame_analysis, transcription_analysis)
                 logger.info("Titles generated")
 
-            # Generate fun TikTok caption using GPT-4 and transcription
+            # Generate fun TikTok caption using GPT-4 and transcription or frame analysis
             logger.info("Generating fun TikTok caption with GPT-4...")
-            result["fun_caption"] = await self.generate_fun_caption(frame_analysis, transcription_analysis, transcription)
+            result["fun_caption"] = await self.generate_fun_caption(
+                frame_analysis,
+                transcription_analysis,
+                transcription if use_transcription else frame_analysis.get("summary", "")
+            )
             logger.info("Fun caption generated")
 
             processing_time = time.time() - start_time
             logger.info(f"Video analysis completed in {processing_time:.2f} seconds")
-            
             return result
-
         except Exception as e:
             logger.error(f"Error in video analysis: {str(e)}")
             raise
