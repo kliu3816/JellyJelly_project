@@ -46,7 +46,7 @@ export default function VideoAnalyzer({
             credentials: 'omit',
           });
           return response.ok;
-        } catch (error) {
+        } catch {
           return false;
         }
       };
