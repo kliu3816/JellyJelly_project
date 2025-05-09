@@ -89,7 +89,7 @@ async def analyze_video(request: Request):
             raise HTTPException(status_code=500, detail="Google API key not configured")
             
         # Initialize analyzer and process video
-        analyzer = VideoAnalyzer(model_size="tiny")  # Use tiny model for faster startup
+        analyzer = VideoAnalyzer()  # Use default model size
         logger.info("VideoAnalyzer initialized successfully")
         
         result = await analyzer.analyze_video(
