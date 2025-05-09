@@ -28,10 +28,11 @@ export default function VideoAnalyzer({
     try {
       const request: VideoAnalysisRequest = {
         video_url: videoUrl,
-        ...options,
+        analyze_emotions: options.analyze_emotions,
+        generate_titles: options.generate_titles
       };
 
-      const response = await fetch('/api/analyze', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -40,7 +41,8 @@ export default function VideoAnalyzer({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to analyze video');
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to analyze video');
       }
 
       const data = await response.json();
