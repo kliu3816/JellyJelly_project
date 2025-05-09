@@ -37,16 +37,48 @@ export default function VideoAnalyzer({
         generate_titles: options.generate_titles
       };
 
-      // Add retry logic with much longer initial delay
+      // Check backend readiness
+      const checkBackendReady = async () => {
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/`, {
+            method: 'GET',
+            mode: 'cors',
+            credentials: 'omit',
+          });
+          return response.ok;
+        } catch (error) {
+          return false;
+        }
+      };
+
+      // Wait for backend to be ready
+      console.log('Checking backend readiness...');
+      onError('Waiting for backend to initialize...');
+      
+      let isReady = false;
+      let attempts = 0;
+      const maxAttempts = 10; // 5 minutes total (30 seconds * 10)
+      
+      while (!isReady && attempts < maxAttempts) {
+        isReady = await checkBackendReady();
+        if (!isReady) {
+          attempts++;
+          console.log(`Backend not ready, attempt ${attempts}/${maxAttempts}`);
+          onError(`Waiting for backend to initialize... (${attempts}/${maxAttempts})`);
+          await new Promise(resolve => setTimeout(resolve, 30000)); // 30 seconds between checks
+        }
+      }
+
+      if (!isReady) {
+        throw new Error('Backend service is not responding. Please try again later.');
+      }
+
+      onError(null);
+      console.log('Backend is ready, proceeding with analysis...');
+
+      // Add retry logic for the actual analysis
       let retries = 3;
       let lastError = null;
-      const initialDelay = 15000; // 15 seconds initial delay
-
-      // Wait for initial delay before first attempt
-      console.log('Waiting for backend to be ready (15 seconds)...');
-      onError('Waiting for backend to initialize...');
-      await new Promise(resolve => setTimeout(resolve, initialDelay));
-      onError(null);
 
       while (retries > 0) {
         try {
