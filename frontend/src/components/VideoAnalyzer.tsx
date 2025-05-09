@@ -40,7 +40,7 @@ export default function VideoAnalyzer({
       // Check backend readiness
       const checkBackendReady = async () => {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/`, {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}`, {
             method: 'GET',
             mode: 'cors',
             credentials: 'omit',
@@ -82,13 +82,14 @@ export default function VideoAnalyzer({
 
       while (retries > 0) {
         try {
-          console.log('Attempting to connect to:', `${process.env.NEXT_PUBLIC_API_URL}/api/analyze`);
+          const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/analyze`;
+          console.log('Attempting to connect to:', apiUrl);
           onError(`Attempting to connect (${4-retries}/3)...`);
           
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/analyze`, {
+          const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

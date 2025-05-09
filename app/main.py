@@ -39,12 +39,13 @@ app.add_middleware(TimeoutMiddleware)
 
 # Configure CORS
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["jelly-jelly-app.vercel.app"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+  CORSMiddleware,
+  allow_origins=["https://jelly-jelly-app.vercel.app"],
+  allow_credentials=True,
+  allow_methods=["*"],
+  allow_headers=["*"],
 )
+
 
 class VideoAnalysisRequest(BaseModel):
     video_url: str
