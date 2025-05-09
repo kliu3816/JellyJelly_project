@@ -5,6 +5,11 @@ from app.services.video_analyzer import VideoAnalyzer
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -44,15 +49,31 @@ async def debug_env():
 @app.post("/api/analyze")
 async def analyze_video(request: VideoAnalysisRequest):
     try:
+        logger.info(f"Received analysis request for video: {request.video_url}")
+        
+        # Validate environment variables
+        if not os.getenv("OPENAI_API_KEY"):
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+        if not os.getenv("GOOGLE_API_KEY"):
+            raise HTTPException(status_code=500, detail="Google API key not configured")
+            
         # Initialize analyzer and process video
         analyzer = VideoAnalyzer()
+        logger.info("VideoAnalyzer initialized successfully")
+        
         result = await analyzer.analyze_video(
             request.video_url,
             analyze_emotions=request.analyze_emotions,
             generate_titles=request.generate_titles
         )
+        
+        logger.info("Video analysis completed successfully")
         return JSONResponse(content=result)
+    except ValueError as e:
+        logger.error(f"Validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error during video analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

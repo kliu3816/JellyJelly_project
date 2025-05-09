@@ -24,16 +24,13 @@ load_dotenv(dotenv_path=".env", override=True)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
 class VideoAnalyzer:
     def __init__(self):
-        # Initialize OpenAI client with minimal configuration
-        self.openai_client = openai.OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url="https://api.openai.com/v1"  # Explicitly set the base URL
-        )
+        # Set OpenAI API key globally
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+        if not openai.api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+            
         logger.info("Loading Whisper model...")
         try:
             self.whisper_model = whisper.load_model("base")
@@ -181,7 +178,8 @@ class VideoAnalyzer:
     async def _analyze_content_safety(self, summary: str) -> float:
         """Analyze content safety using GPT-4."""
         try:
-            response = self.openai_client.chat.completions.create(
+            response = await asyncio.to_thread(
+                openai.ChatCompletion.create,
                 model="gpt-4",
                 messages=[
                     {
@@ -293,7 +291,8 @@ class VideoAnalyzer:
 
             # Combine frame descriptions and transcription for final analysis
             logger.info("Generating final analysis with GPT-4...")
-            combined_analysis = self.openai_client.chat.completions.create(
+            combined_analysis = await asyncio.to_thread(
+                openai.ChatCompletion.create,
                 model="gpt-4",
                 messages=[
                     {
