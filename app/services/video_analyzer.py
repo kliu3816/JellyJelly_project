@@ -220,8 +220,11 @@ class VideoAnalyzer:
             # Download video to temporary file
             with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_file:
                 logger.info("Downloading video...")
-                response = requests.get(video_url)
-                temp_file.write(response.content)
+                response = requests.get(video_url, stream=True)
+                response.raise_for_status()  # Raise an exception for bad status codes
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        temp_file.write(chunk)
                 temp_file_path = temp_file.name
                 logger.info(f"Video downloaded to: {temp_file_path}")
 

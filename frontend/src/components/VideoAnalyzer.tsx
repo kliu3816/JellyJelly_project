@@ -26,6 +26,11 @@ export default function VideoAnalyzer({
     onLoadingChange(true);
 
     try {
+      // Validate video URL
+      if (!videoUrl.startsWith('https://')) {
+        throw new Error('Please enter a valid HTTPS URL');
+      }
+
       const request: VideoAnalysisRequest = {
         video_url: videoUrl,
         analyze_emotions: options.analyze_emotions,
@@ -36,12 +41,13 @@ export default function VideoAnalyzer({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify(request),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to analyze video' }));
         throw new Error(errorData.detail || 'Failed to analyze video');
       }
 
