@@ -170,6 +170,47 @@ class VideoAnalyzer:
             if video is not None:
                 video.close()
 
+    async def _analyze_content_safety(self, summary: str) -> float:
+        """Analyze content safety using GPT-4."""
+        try:
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """You are a content safety analyzer. Your task is to analyze the content and provide a safety score between 0 and 1.
+                        Consider:
+                        1. Explicit or inappropriate content
+                        2. Hate speech or discriminatory language
+                        3. Violence or harmful content
+                        4. Adult or NSFW content
+                        5. Misinformation or harmful claims
+                        
+                        Return ONLY a number between 0 and 1, where:
+                        1.0 = Completely safe, family-friendly content
+                        0.0 = Extremely unsafe, harmful content"""
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Analyze this content for safety: {summary}"
+                    }
+                ]
+            )
+            
+            # Extract the score from GPT's response
+            score_text = response.choices[0].message.content.strip()
+            try:
+                score = float(score_text)
+                # Ensure score is between 0 and 1
+                return max(0.0, min(1.0, score))
+            except ValueError:
+                logger.error(f"Invalid safety score format: {score_text}")
+                return 0.95  # Default safe score if parsing fails
+                
+        except Exception as e:
+            logger.error(f"Error analyzing content safety: {str(e)}")
+            return 0.95  # Default safe score if analysis fails
+
     async def analyze_video(self, video_url: str) -> Dict[str, Any]:
         """Analyze a video using multiple AI models."""
         temp_file_path = None
@@ -279,7 +320,10 @@ Please provide:
             
             # Add key moments
             analysis["key_moments"] = self._extract_key_moments(frames, duration)
-            analysis["safety_score"] = 0.95  # Placeholder implementation
+            
+            # Analyze content safety
+            logger.info("Analyzing content safety...")
+            analysis["safety_score"] = await self._analyze_content_safety(analysis["summary"])
 
             return analysis
 
