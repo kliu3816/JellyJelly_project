@@ -25,19 +25,29 @@ export default function AnalysisResults({ analysis }: AnalysisResultsProps) {
           <div>
             <h3 className="text-lg font-medium text-gray-300 mb-2">Setting and Context</h3>
             <div className="bg-gray-700/50 rounded-lg p-4">
-              <p className="text-gray-200 whitespace-pre-wrap">{analysis.setting || "No setting information available"}</p>
+              <p className="text-gray-200 whitespace-pre-wrap">
+                {analysis.setting && analysis.setting.trim() !== '' 
+                  ? analysis.setting 
+                  : "No setting information available"}
+              </p>
             </div>
           </div>
           <div>
             <h3 className="text-lg font-medium text-gray-300 mb-2">Topic and Key Points</h3>
             <div className="bg-gray-700/50 rounded-lg p-4">
-              <p className="text-gray-200 whitespace-pre-wrap">{analysis.conversation_topic || "No topic information available"}</p>
+              <p className="text-gray-200 whitespace-pre-wrap">
+                {analysis.conversation_topic && analysis.conversation_topic.trim() !== '' 
+                  ? analysis.conversation_topic.replace(/^\d+\.\s*/, '') // Remove leading numbers and dots
+                  : "No topic information available"}
+              </p>
             </div>
           </div>
           <div>
             <h3 className="text-lg font-medium text-gray-300 mb-2">Mood and Tone</h3>
             <div className="bg-gray-700/50 rounded-lg p-4">
-              <p className="text-gray-200 capitalize whitespace-pre-wrap">{analysis.mood || "No mood information available"}</p>
+              <p className="text-gray-200 capitalize whitespace-pre-wrap">
+                {analysis.mood || "No mood information available"}
+              </p>
             </div>
           </div>
         </div>

@@ -15,6 +15,7 @@ import asyncio
 import time
 import logging
 import subprocess
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -336,16 +337,19 @@ Please provide:
                 
                 # Look for setting section
                 elif "2. The setting" in section or "Setting:" in section:
+                    # Extract the setting text, removing the header
                     setting_lines = section.split('\n')[1:] if '\n' in section else [section]
                     result["setting"] = ' '.join(setting_lines).strip()
                 
                 # Look for conversation topic section
                 elif "3. The main topic" in section or "Topic:" in section:
+                    # Extract the topic text, removing the header
                     topic_lines = section.split('\n')[1:] if '\n' in section else [section]
                     result["conversation_topic"] = ' '.join(topic_lines).strip()
                 
                 # Look for caption section
                 elif "4. A viral caption" in section or "Caption:" in section:
+                    # Extract the caption text, removing the header
                     caption_lines = section.split('\n')[1:] if '\n' in section else [section]
                     result["suggested_caption"] = ' '.join(caption_lines).strip()
             
@@ -356,23 +360,34 @@ Please provide:
                 if paragraphs:
                     result["summary"] = paragraphs[0]
             
-            if not result["setting"] and "setting" in analysis_text.lower():
+            if not result["setting"]:
                 # Try to find setting information
-                setting_index = analysis_text.lower().find("setting")
-                if setting_index != -1:
-                    result["setting"] = analysis_text[setting_index:].split('\n')[0].strip()
+                for section in sections:
+                    if "setting" in section.lower() or "context" in section.lower():
+                        result["setting"] = section.strip()
+                        break
             
-            if not result["conversation_topic"] and "topic" in analysis_text.lower():
+            if not result["conversation_topic"]:
                 # Try to find topic information
-                topic_index = analysis_text.lower().find("topic")
-                if topic_index != -1:
-                    result["conversation_topic"] = analysis_text[topic_index:].split('\n')[0].strip()
+                for section in sections:
+                    if "topic" in section.lower() or "key points" in section.lower():
+                        result["conversation_topic"] = section.strip()
+                        break
             
-            if not result["suggested_caption"] and "caption" in analysis_text.lower():
+            if not result["suggested_caption"]:
                 # Try to find caption information
-                caption_index = analysis_text.lower().find("caption")
-                if caption_index != -1:
-                    result["suggested_caption"] = analysis_text[caption_index:].split('\n')[0].strip()
+                for section in sections:
+                    if "caption" in section.lower():
+                        result["suggested_caption"] = section.strip()
+                        break
+            
+            # Clean up any remaining headers or numbers in the fields
+            for key in ["setting", "conversation_topic", "suggested_caption"]:
+                if result[key]:
+                    # Remove common headers and numbers
+                    result[key] = result[key].replace("Setting:", "").replace("Topic:", "").replace("Caption:", "")
+                    result[key] = re.sub(r'^\d+\.\s*', '', result[key])
+                    result[key] = result[key].strip()
             
             return result
             
