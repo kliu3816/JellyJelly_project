@@ -17,13 +17,18 @@ import logging
 import subprocess
 import re
 
+load_dotenv(dotenv_path=".env", override=True)
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class VideoAnalyzer:
     def __init__(self):
-        self.openai_client = openai.OpenAI()
+        # Initialize OpenAI client without any proxy settings
+        self.openai_client = openai.OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
         logger.info("Loading Whisper model...")
         try:
             self.whisper_model = whisper.load_model("base")
@@ -33,8 +38,6 @@ class VideoAnalyzer:
             raise
         
         # Configure Gemini with safety settings
-        load_dotenv(dotenv_path=".env", override=True) 
-
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is not set")
