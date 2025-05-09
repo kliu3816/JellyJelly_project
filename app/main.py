@@ -21,28 +21,37 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# Initialize FastAPI app
+app = FastAPI()
+
+# Global analyzer instance (load model on startup)
+analyzer: VideoAnalyzer
+
+@app.on_event("startup")
+async def load_video_analyzer():
+    global analyzer
+    logger.info("Loading VideoAnalyzer model on startup...")
+    analyzer = VideoAnalyzer()
+    logger.info("VideoAnalyzer model loaded")
+
 class TimeoutMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: StarletteRequest, call_next):
         try:
-            return await asyncio.wait_for(call_next(request), timeout=300.0)  # 5 minutes timeout
+            # Increase timeout if needed
+            return await asyncio.wait_for(call_next(request), timeout=600.0)  # 10 minutes
         except asyncio.TimeoutError:
             return JSONResponse(
                 status_code=504,
                 content={"detail": "Request timeout"}
             )
 
-app = FastAPI()
-
 # Add timeout middleware
 app.add_middleware(TimeoutMiddleware)
 
-# Configure CORS with your current Vercel origin
+# Configure CORS (allow only your frontend domain)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://jelly-jelly-app.vercel.app",
-        "https://jelly-jelly-project.vercel.app",
-        "*"],
+    allow_origins=["https://jelly-jelly-app.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,7 +68,6 @@ async def root():
 
 @app.get("/debug/env")
 async def debug_env():
-    # Debug endpoint to check env vars
     return {
         "OPENAI_API_KEY": bool(os.getenv("OPENAI_API_KEY")),
         "GOOGLE_API_KEY": bool(os.getenv("GOOGLE_API_KEY")),
@@ -69,8 +77,8 @@ async def debug_env():
 async def analyze_video(request: Request):
     start_time = time.time()
     try:
-        data = await request.json()
-        video_url = data.get("video_url")
+        payload = await request.json()
+        video_url = payload.get("video_url")
         if not video_url:
             raise HTTPException(status_code=400, detail="video_url is required")
 
@@ -78,13 +86,15 @@ async def analyze_video(request: Request):
         if not os.getenv("OPENAI_API_KEY") or not os.getenv("GOOGLE_API_KEY"):
             raise HTTPException(status_code=500, detail="API keys not configured")
 
-        analyzer = VideoAnalyzer()
+        # Delegate to preloaded analyzer
         result = await analyzer.analyze_video(
             video_url,
-            analyze_emotions=data.get("analyze_emotions", True),
-            generate_titles=data.get("generate_titles", True)
+            analyze_emotions=payload.get("analyze_emotions", True),
+            generate_titles=payload.get("generate_titles", True)
         )
-        logger.info(f"Analysis completed in {time.time() - start_time:.2f}s")
+
+        duration = time.time() - start_time
+        logger.info(f"Analysis completed in {duration:.2f}s")
         return JSONResponse(content=result)
 
     except HTTPException:
