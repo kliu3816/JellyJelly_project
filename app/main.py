@@ -41,7 +41,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://jelly-jelly-app.vercel.app",
-        "https://jelly-jelly-project.vercel.app"],
+        "https://jelly-jelly-project.vercel.app",
+        "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
