@@ -37,14 +37,25 @@ export default function VideoAnalyzer({
         generate_titles: options.generate_titles
       };
 
-      // Add retry logic
+      // Add retry logic with much longer initial delay
       let retries = 3;
       let lastError = null;
+      let initialDelay = 15000; // 15 seconds initial delay
+
+      // Wait for initial delay before first attempt
+      console.log('Waiting for backend to be ready (15 seconds)...');
+      onError('Waiting for backend to initialize...');
+      await new Promise(resolve => setTimeout(resolve, initialDelay));
+      onError(null);
 
       while (retries > 0) {
         try {
           console.log('Attempting to connect to:', `${process.env.NEXT_PUBLIC_API_URL}/api/analyze`);
+          onError(`Attempting to connect (${4-retries}/3)...`);
           
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
           const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/analyze`, {
             method: 'POST',
             headers: {
@@ -54,7 +65,10 @@ export default function VideoAnalyzer({
             body: JSON.stringify(request),
             mode: 'cors',
             credentials: 'omit',
+            signal: controller.signal
           });
+
+          clearTimeout(timeoutId);
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Failed to analyze video' }));
@@ -71,8 +85,10 @@ export default function VideoAnalyzer({
           lastError = error;
           retries--;
           if (retries > 0) {
-            console.log(`Retrying... ${retries} attempts left`);
-            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying
+            const delay = 5000; // 5 seconds between retries
+            console.log(`Retrying in ${delay/1000} seconds... ${retries} attempts left`);
+            onError(`Connection failed. Retrying in ${delay/1000} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
           }
         }
       }
