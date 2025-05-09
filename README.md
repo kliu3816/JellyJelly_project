@@ -131,16 +131,3 @@ Backend (Render):
 4. View the comprehensive analysis results
 5. Download the analysis as JSON using the download button
 
-<<<<<<< HEAD
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 
-=======
-## Deployment
-
-The application is deployed on Vercel and can be accessed at [https://jelly-jelly-app.vercel.app/](https://jelly-jelly-app.vercel.app/)
->>>>>>> 8536ae14eb2bca24ef6934d221ebcf74e3e41112
