@@ -3,7 +3,6 @@ export interface VideoAnalysisRequest {
     language?: string;
     analyze_emotions?: boolean;
     generate_titles?: boolean;
-    detect_speakers?: boolean;
   }
   
   export interface VideoAnalysisResponse {
@@ -26,6 +25,5 @@ export interface VideoAnalysisRequest {
       dominant_emotions: string;
     };
     titles?: string[];
-    speaker_count?: number;
     safety_score: number;
   }

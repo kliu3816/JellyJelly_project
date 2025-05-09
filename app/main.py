@@ -41,7 +41,6 @@ class VideoAnalysisRequest(BaseModel):
     language: Optional[str] = "en"
     analyze_emotions: Optional[bool] = True
     generate_titles: Optional[bool] = True
-    detect_speakers: Optional[bool] = True
 
 class VideoAnalysisResponse(BaseModel):
     summary: str
@@ -52,7 +51,6 @@ class VideoAnalysisResponse(BaseModel):
     key_moments: List[dict]
     emotions: Optional[dict]
     titles: Optional[List[str]]
-    speaker_count: Optional[int]
     safety_score: float
 
 @app.get("/api/health")
@@ -96,10 +94,6 @@ async def analyze_video(request: VideoAnalysisRequest):
                             os.unlink(temp_file_path)
                         except Exception as e:
                             logger.error(f"Error deleting temporary file: {str(e)}")
-        
-        if request.detect_speakers:
-            logger.info("Detecting speakers...")
-            analysis["speaker_count"] = await analyzer.detect_speakers(request.video_url)
 
         logger.info("Analysis completed successfully")
         return VideoAnalysisResponse(**analysis)

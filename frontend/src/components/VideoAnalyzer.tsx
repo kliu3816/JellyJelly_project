@@ -18,7 +18,6 @@ export default function VideoAnalyzer({
   const [options, setOptions] = useState({
     analyze_emotions: true,
     generate_titles: true,
-    detect_speakers: true,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,17 +98,6 @@ export default function VideoAnalyzer({
               className="rounded border-gray-700 bg-gray-800"
             />
             <span>Generate Titles</span>
-          </label>
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={options.detect_speakers}
-              onChange={(e) =>
-                setOptions({ ...options, detect_speakers: e.target.checked })
-              }
-              className="rounded border-gray-700 bg-gray-800"
-            />
-            <span>Detect Speakers</span>
           </label>
         </div>
       </div>

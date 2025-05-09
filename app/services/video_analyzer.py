@@ -400,9 +400,4 @@ Please provide:
                 "conversation_topic": "Unable to extract topic",
                 "suggested_caption": "Unable to extract caption",
                 "mood": "neutral"
-            }
-
-    async def detect_speakers(self, video_url: str) -> int:
-        """Detect the number of speakers in the video."""
-        # Placeholder implementation
-        return 1 
+            } 
