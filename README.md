@@ -70,7 +70,7 @@ GOOGLE_API_KEY=your_google_api_key
 
 1. Start the backend server:
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 10000
 ```
 
 2. Start the frontend development server:
