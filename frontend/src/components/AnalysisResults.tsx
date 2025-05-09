@@ -9,9 +9,34 @@ export default function AnalysisResults({ analysis }: AnalysisResultsProps) {
   console.log('Summary value:', analysis.summary);
   console.log('Setting value:', analysis.setting);
   console.log('Conversation Topic value:', analysis.conversation_topic);
+
+  const handleDownload = () => {
+    const dataStr = JSON.stringify(analysis, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = 'video-analysis.json';
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
   
   return (
     <div className="mt-8 space-y-8">
+      {/* Download Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleDownload}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+          <span>Download Analysis</span>
+        </button>
+      </div>
+
       {/* Summary Section */}
       <section className="bg-gray-800/50 rounded-lg p-6">
         <h2 className="text-2xl font-semibold mb-4">Summary</h2>
