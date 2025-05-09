@@ -14,13 +14,14 @@ class TitleGenerator:
                     "role": "system",
                     "content": """You are a viral content expert. Generate 5 engaging titles for the video based on the summary and transcription.
                     The titles should be:
-                    1. Attention-grabbing
+                    1. Attention-grabbing and specific to the actual content
                     2. Under 60 characters
-                    3. Include relevant keywords from both visual and spoken content
-                    4. Use power words
+                    3. Include key phrases or quotes from the actual conversation
+                    4. Use power words that match the video's tone
                     5. Follow YouTube/TikTok title best practices
                     6. Not mention how it is split screen since every video is split screen
-                    7. Incorporate key phrases from the actual conversation
+                    7. Directly reference what is being said or shown in the video
+                    8. Avoid generic phrases like "Watch Live" or "Behind the Scenes"
                     
                     Format each title on a new line."""
                 },
@@ -32,7 +33,12 @@ Summary: {video_summary}
 
 Transcription: {transcription}
 
-Focus on creating titles that capture both the visual content and the actual conversation."""
+Important:
+- Use actual quotes or key phrases from the transcription
+- Reference specific moments or topics discussed
+- Make titles specific to this video's content
+- Avoid generic phrases
+- Focus on the actual message and purpose of the video"""
                 }
             ],
             max_tokens=300

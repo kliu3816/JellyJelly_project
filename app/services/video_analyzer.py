@@ -13,11 +13,23 @@ from dotenv import load_dotenv
 import whisper
 import asyncio
 import time
+import logging
+import subprocess
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class VideoAnalyzer:
     def __init__(self):
         self.openai_client = openai.OpenAI()
-        self.whisper_model = whisper.load_model("base")
+        logger.info("Loading Whisper model...")
+        try:
+            self.whisper_model = whisper.load_model("base")
+            logger.info("Whisper model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load Whisper model: {str(e)}")
+            raise
         
         # Configure Gemini with safety settings
         load_dotenv(dotenv_path=".env", override=True) 
@@ -57,16 +69,82 @@ class VideoAnalyzer:
             safety_settings=safety_settings
         )
         
+    def _extract_audio(self, video_path: str) -> str:
+        """Extract audio from video file to a temporary WAV file."""
+        temp_audio_path = video_path.replace('.mp4', '_audio.wav')
+        try:
+            # Use ffmpeg to extract audio
+            command = [
+                'ffmpeg', '-i', video_path,
+                '-vn',  # No video
+                '-acodec', 'pcm_s16le',  # PCM 16-bit
+                '-ar', '16000',  # 16kHz sample rate
+                '-ac', '1',  # Mono
+                '-y',  # Overwrite output file
+                temp_audio_path
+            ]
+            
+            logger.info(f"Extracting audio with command: {' '.join(command)}")
+            result = subprocess.run(command, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                logger.error(f"FFmpeg error: {result.stderr}")
+                return ""
+                
+            logger.info("Audio extraction successful")
+            return temp_audio_path
+            
+        except Exception as e:
+            logger.error(f"Error extracting audio: {str(e)}")
+            return ""
+        
     async def _transcribe_audio(self, video_path: str) -> str:
         """Transcribe the audio from the video using Whisper."""
+        temp_audio_path = None
         try:
+            logger.info(f"Starting transcription of video: {video_path}")
+            
+            # Verify the file exists and is readable
+            if not os.path.exists(video_path):
+                logger.error(f"Video file not found: {video_path}")
+                return ""
+                
+            # Get file size
+            file_size = os.path.getsize(video_path)
+            logger.info(f"Video file size: {file_size} bytes")
+            
+            # Extract audio to WAV format
+            temp_audio_path = self._extract_audio(video_path)
+            if not temp_audio_path or not os.path.exists(temp_audio_path):
+                logger.error("Failed to extract audio")
+                return ""
+            
             # Run the CPU-intensive transcription in a thread pool
             loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, self.whisper_model.transcribe, video_path)
-            return result["text"]
+            logger.info("Starting Whisper transcription...")
+            result = await loop.run_in_executor(None, self.whisper_model.transcribe, temp_audio_path)
+            
+            if not result or "text" not in result:
+                logger.error("Transcription failed - no text in result")
+                return ""
+                
+            transcription = result["text"].strip()
+            logger.info(f"Transcription completed. Length: {len(transcription)} characters")
+            logger.info(f"Transcription content: {transcription}")
+            
+            return transcription
+            
         except Exception as e:
-            print(f"Error transcribing audio: {str(e)}")
+            logger.error(f"Error during transcription: {str(e)}")
             return ""
+        finally:
+            # Clean up temporary audio file
+            if temp_audio_path and os.path.exists(temp_audio_path):
+                try:
+                    os.unlink(temp_audio_path)
+                    logger.info(f"Cleaned up temporary audio file: {temp_audio_path}")
+                except Exception as e:
+                    logger.error(f"Error deleting temporary audio file: {str(e)}")
 
     def _extract_key_frames(self, video_path: str, num_frames: int = 5) -> List[Image.Image]:
         """Extract key frames from video for analysis."""
@@ -95,25 +173,35 @@ class VideoAnalyzer:
         """Analyze a video using multiple AI models."""
         temp_file_path = None
         try:
+            logger.info(f"Starting video analysis for URL: {video_url}")
+            
             # Download video to temporary file
             with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_file:
+                logger.info("Downloading video...")
                 response = requests.get(video_url)
                 temp_file.write(response.content)
                 temp_file_path = temp_file.name
+                logger.info(f"Video downloaded to: {temp_file_path}")
 
             # Extract frames for analysis
+            logger.info("Extracting frames...")
             frames = self._extract_key_frames(temp_file_path)
             
             # Get video duration
             video = VideoFileClip(temp_file_path)
             duration = video.duration
             video.close()
+            logger.info(f"Video duration: {duration} seconds")
 
             # Transcribe audio
+            logger.info("Starting audio transcription...")
             transcription = await self._transcribe_audio(temp_file_path)
-            print("Transcription completed:", transcription)
+            if not transcription:
+                logger.warning("No transcription available - proceeding with visual analysis only")
+                transcription = "No audio transcription available."
 
             # Analyze frames with Gemini
+            logger.info("Analyzing frames with Gemini...")
             frame_descriptions = []
             for i, frame in enumerate(frames):
                 try:
@@ -133,7 +221,7 @@ class VideoAnalyzer:
                         }
                     ]
                     
-                    print(f"Analyzing frame {i+1} with Gemini...")
+                    logger.info(f"Analyzing frame {i+1} with Gemini...")
                     response = self.gemini_model.generate_content([
                         "Describe this frame in detail, including:\n1. What's happening\n2. The setting\n3. People and their actions\n4. Notable expressions or emotions",
                         image_parts[0]
@@ -141,39 +229,50 @@ class VideoAnalyzer:
                     
                     if response and hasattr(response, 'text'):
                         frame_descriptions.append(response.text)
-                        print(f"Successfully analyzed frame {i+1}")
+                        logger.info(f"Successfully analyzed frame {i+1}")
                     else:
-                        print(f"Empty response from Gemini for frame {i+1}")
+                        logger.warning(f"Empty response from Gemini for frame {i+1}")
                         frame_descriptions.append("Unable to analyze this frame")
                         
                 except Exception as e:
-                    print(f"Error analyzing frame {i+1} with Gemini: {str(e)}")
+                    logger.error(f"Error analyzing frame {i+1} with Gemini: {str(e)}")
                     frame_descriptions.append("Unable to analyze this frame")
 
             # Combine frame descriptions and transcription for final analysis
+            logger.info("Generating final analysis with GPT-4...")
             combined_analysis = self.openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a video analysis expert. Analyze the following frame-by-frame descriptions and transcription to provide a comprehensive analysis."
+                        "content": """You are a video analysis expert. Your task is to analyze both the visual content and spoken words to create a comprehensive analysis.
+                        Focus on:
+                        1. What is actually being said in the video
+                        2. The visual context and actions
+                        3. How the spoken content relates to what's being shown
+                        4. The overall message and purpose of the video"""
                     },
                     {
                         "role": "user",
-                        "content": f"""Based on these frame descriptions: {frame_descriptions}
+                        "content": f"""Analyze this video based on:
 
-And the video transcription: {transcription}
+Visual Content (Frame Descriptions):
+{frame_descriptions}
 
-Provide:
-1. A comprehensive summary that combines both visual and audio content
-2. The setting
-3. The conversation topic and key points discussed
-4. A suggested viral caption that captures both the visual and spoken content"""
+Spoken Content (Transcription):
+{transcription}
+
+Please provide:
+1. A detailed summary that combines both what is being said and what is being shown. Focus on the actual content and message.
+2. The setting and context of the video
+3. The main topic and key points being discussed
+4. A viral caption that captures the essence of both the visual and spoken content"""
                     }
                 ]
             )
 
             analysis_text = combined_analysis.choices[0].message.content
+            logger.info("Analysis completed successfully")
             analysis = self._parse_analysis(analysis_text)
             
             # Add key moments
@@ -182,6 +281,9 @@ Provide:
 
             return analysis
 
+        except Exception as e:
+            logger.error(f"Error during video analysis: {str(e)}")
+            raise
         finally:
             # Clean up temporary file
             if temp_file_path and os.path.exists(temp_file_path):
@@ -189,8 +291,9 @@ Provide:
                     # Give a small delay to ensure all file handles are released
                     await asyncio.sleep(1)
                     os.unlink(temp_file_path)
+                    logger.info(f"Temporary file cleaned up: {temp_file_path}")
                 except Exception as e:
-                    print(f"Error deleting temporary file: {str(e)}")
+                    logger.error(f"Error deleting temporary file: {str(e)}")
 
     def _extract_key_moments(self, frames: List[Image.Image], duration: float) -> List[Dict[str, Any]]:
         """Extract key moments from the video."""
