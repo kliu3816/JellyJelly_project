@@ -31,7 +31,7 @@ export default function VideoAnalyzer({
         ...options,
       };
 
-      const response = await fetch('http://localhost:8000/api/analyze', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

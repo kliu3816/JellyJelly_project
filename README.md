@@ -78,6 +78,46 @@ npm run dev
 
 3. Open [http://localhost:3000](http://localhost:3000) in your browser
 
+## Deployment
+
+### Frontend Deployment (Vercel)
+
+1. Push your code to GitHub
+2. Go to [Vercel](https://vercel.com)
+3. Import your repository
+4. Configure the project:
+   - Framework Preset: Next.js
+   - Root Directory: frontend
+   - Build Command: `npm run build`
+   - Output Directory: .next
+5. Add environment variables:
+   - `NEXT_PUBLIC_API_URL`: Your backend API URL
+
+### Backend Deployment (Render)
+
+1. Create a new Web Service on [Render](https://render.com)
+2. Connect your GitHub repository
+3. Configure the service:
+   - Name: jellyjelly-backend
+   - Environment: Python
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. Add environment variables:
+   - `OPENAI_API_KEY`
+   - `GOOGLE_API_KEY`
+5. Deploy the service
+
+### Environment Variables
+
+Make sure to set these environment variables in your deployment platforms:
+
+Frontend (Vercel):
+- `NEXT_PUBLIC_API_URL`: Your Render backend URL
+
+Backend (Render):
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `GOOGLE_API_KEY`: Your Google API key
+
 ## Usage
 
 1. Enter a video URL in the input field
@@ -87,10 +127,6 @@ npm run dev
 3. Click "Analyze Video"
 4. View the comprehensive analysis results
 5. Download the analysis as JSON using the download button
-
-## Deployment
-
-The application is deployed on Vercel and can be accessed at [https://jelly-jelly-app.vercel.app/](https://jelly-jelly-app.vercel.app/)
 
 ## Contributing
 
