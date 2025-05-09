@@ -141,8 +141,8 @@ class VideoAnalyzer:
     async def _analyze_content_safety(self, summary: str) -> float:
         """Analyze content safety using GPT-4."""
         try:
-            response = await asyncio.to_thread(
-                openai.ChatCompletion.create,
+            client = openai.AsyncOpenAI()
+            response = await client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {
